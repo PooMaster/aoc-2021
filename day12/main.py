@@ -2,11 +2,12 @@ from collections import defaultdict
 
 
 def gen_paths_p1(next_hop, path, visited):
+    # Path is complete, stahp
     if path[-1] == 'end':
         yield path
         return
 
-    # non-deterministically pick next hop in path
+    # Non-deterministically pick next hop in path
     for n in next_hop[path[-1]]:
         if n.islower() and n in visited:
             # Can't visit lowercase node more than once
@@ -16,11 +17,12 @@ def gen_paths_p1(next_hop, path, visited):
 
 
 def gen_paths_p2(next_hop, path, visited, double_visited=None):
+    # Path is complete, stahp
     if path[-1] == 'end':
         yield path
         return
 
-    # non-deterministically pick next hop in path
+    # Non-deterministically pick next hop in path
     for n in next_hop[path[-1]]:
         new_double = double_visited
         if n.islower() and n in visited:
@@ -35,16 +37,15 @@ def gen_paths_p2(next_hop, path, visited, double_visited=None):
 
 
 if __name__ == '__main__':
-    # content: str = open('input.txt').read()
     content: str = open('input.txt').read()
     edges = [line.split('-') for line in content.strip().splitlines()]
 
+    # Make lookup of possible next hops from any given node
     next_hop = defaultdict(list)
     for here, there in edges:
         next_hop[here].append(there)
         next_hop[there].append(here)
 
+    # Find all the legal paths
     paths = list(gen_paths_p2(next_hop, ['start'], {'start'}))
-    # for p in paths:
-    #     print(p)
     print(len(paths))
