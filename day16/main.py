@@ -1,10 +1,22 @@
 import logging
 from enum import Enum
 from math import prod
-from collections import namedtuple
+from typing import cast, NamedTuple, Iterator, Iterable
 
 
-Packet = namedtuple("Packet", "version, type, value")
+class StrChunkReader:
+    def __init__(self, string: str):
+        self.it: Iterator[str] = iter(string)
+        self.remaining: int = len(string)
+    
+    def take(self, n: int) -> str:
+        self.remaining -= n
+        ret = ''.join(next(self.it) for _ in range(n))
+        logging.debug(f"Next {n} bits are {ret}")
+        return ret
+
+    def finished(self) -> bool:
+        return self.remaining == 0
 
 
 class PacketType(Enum):
@@ -18,7 +30,13 @@ class PacketType(Enum):
     equal_to = 7
 
 
-def parse_packet(reader):
+class Packet(NamedTuple):
+    version: int
+    type: PacketType
+    value: int | list["Packet"]
+
+
+def parse_packet(reader: StrChunkReader) -> Packet:
     version, type = read_packet_header(reader)
 
     logging.info(f"Started parsing packet of type {type} version {version}")
@@ -35,7 +53,7 @@ def parse_packet(reader):
             logging.info(f"Operator with length type 0, reading packets in the next {sub_packets_length} bits")
             value = list(parse_packets(StrChunkReader(reader.take(sub_packets_length))))
 
-        elif length_type_id == '1':
+        else:  # length_type_id == '1':
             sub_packets_count = int(reader.take(11), 2)
             logging.info(f"Operator with length type 1, reading {sub_packets_count} sub packets")
             value = [parse_packet(reader) for _ in range(sub_packets_count)]
@@ -43,48 +61,33 @@ def parse_packet(reader):
     return Packet(version, type, value)
 
 
-def parse_packets(reader):
+def parse_packets(reader: StrChunkReader) -> Iterable[Packet]:
     while not reader.finished():
         yield parse_packet(reader)
 
 
-def read_packet_header(reader):
+def read_packet_header(reader: StrChunkReader) -> tuple[int, PacketType]:
     version = int(reader.take(3), 2)
     type_id = int(reader.take(3), 2)
 
     return version, PacketType(type_id)
 
 
-def read_chunks(reader):
+def read_chunks(reader: StrChunkReader) -> Iterable[str]:
     continue_bit = '1'
     while continue_bit == '1':
         continue_bit = reader.take(1)
         yield reader.take(4)
 
 
-class StrChunkReader:
-    def __init__(self, string):
-        self.it = iter(string)
-        self.remaining = len(string)
-    
-    def take(self, n: int) -> str:
-        self.remaining -= n
-        ret = ''.join(next(self.it) for _ in range(n))
-        logging.debug(f"Next {n} bits are {ret}")
-        return ret
+hex_table: dict[int, str] = {ord(h): format(bin(int(h, 16))[2:], '>04') for h in '0123456789ABCDEF'}
 
-    def finished(self) -> bool:
-        return self.remaining == 0
-
-
-hex_table = {ord(h): format(bin(int(h, 16))[2:], '>04') for h in '0123456789ABCDEF'}
-
-def hex_to_bits(hex: str):
+def hex_to_bits(hex: str) -> str:
     return hex.translate(hex_table)
 
 
-def packet_version_sum(packet):
-    def packet_version_generator(packet):
+def packet_version_sum(packet: Packet) -> int:
+    def packet_version_generator(packet: Packet) -> Iterable[int]:
         yield packet.version
         if isinstance(packet.value, list):
             for p in packet.value:
@@ -96,28 +99,31 @@ def packet_version_sum(packet):
 def evaluate_packet(packet: Packet) -> int:
     match packet.type:
         case PacketType.sum:
-            return sum(evaluate_packet(p) for p in packet.value)
+            return sum(evaluate_packet(p) for p in cast(list[Packet], packet.value))
 
         case PacketType.product:
-            return prod(evaluate_packet(p) for p in packet.value)
+            return prod(evaluate_packet(p) for p in cast(list[Packet], packet.value))
 
         case PacketType.minimum:
-            return min(evaluate_packet(p) for p in packet.value)
+            return min(evaluate_packet(p) for p in cast(list[Packet], packet.value))
 
         case PacketType.maximum:
-            return max(evaluate_packet(p) for p in packet.value)
+            return max(evaluate_packet(p) for p in cast(list[Packet], packet.value))
 
         case PacketType.literal_value:
-            return packet.value
+            return cast(int, packet.value)
 
         case PacketType.greater_than:
-            return int(evaluate_packet(packet.value[0]) > evaluate_packet(packet.value[1]))
+            left, right = cast(list[Packet], packet.value)
+            return int(evaluate_packet(left) > evaluate_packet(right))
 
         case PacketType.less_than:
-            return int(evaluate_packet(packet.value[0]) < evaluate_packet(packet.value[1]))
+            left, right = cast(list[Packet], packet.value)
+            return int(evaluate_packet(left) < evaluate_packet(right))
 
         case PacketType.equal_to:
-            return int(evaluate_packet(packet.value[0]) == evaluate_packet(packet.value[1]))
+            left, right = cast(list[Packet], packet.value)
+            return int(evaluate_packet(left) == evaluate_packet(right))
 
 
 if __name__ == '__main__':
@@ -125,6 +131,6 @@ if __name__ == '__main__':
 
     content: str = open('input.txt').read()
     # content = "9C0141080250320F1802104A08"
-    p = parse_packet(StrChunkReader(hex_to_bits(content.strip())))
+    p: Packet = parse_packet(StrChunkReader(hex_to_bits(content.strip())))
     print(packet_version_sum(p))
     print(evaluate_packet(p))
