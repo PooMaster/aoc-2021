@@ -21,7 +21,7 @@ class PacketType(Enum):
 def parse_packet(reader):
     version, type = read_packet_header(reader)
 
-    logging.info("Started parsing packet of type %d version %d", version, type)
+    logging.info("Started parsing packet of type %s version %d", type, version)
 
     if type == PacketType.literal_value:
         chunks = list(read_chunks(reader))
@@ -121,7 +121,7 @@ def evaluate_packet(packet: Packet) -> int:
 
 
 if __name__ == '__main__':
-    # logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(level=logging.INFO)
 
     content: str = open('input.txt').read()
     # content = "9C0141080250320F1802104A08"
