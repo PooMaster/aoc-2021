@@ -1,4 +1,5 @@
 import re
+import itertools
 from typing import cast, NamedTuple, Iterable
 from collections import ChainMap
 
@@ -12,6 +13,23 @@ Grid = dict[Pos, str]
 
 def add_pos(*args: Pos) -> Pos:
     return Pos(sum(p.x for p in args), sum(p.y for p in args))
+
+
+ORTHOGONAL_DIRECTIONS = [
+    Pos(1, 0),
+    Pos(0, 1),
+    Pos(-1, 0),
+    Pos(0, -1),
+]
+
+
+def neighbors(pos: Pos, exclude: set[Pos] = set()) -> Iterable[Pos]:
+    for dir in itertools.starmap(Pos, itertools.product(range(-20, 20), repeat=2)):
+    # for dir in ORTHOGONAL_DIRECTIONS:
+        if dir == Pos(0, 0) or dir in exclude:
+            continue
+        neighbor = add_pos(pos, dir)
+        yield neighbor
 
 
 input_pattern = re.compile(r'target area: x=(-?\d+)..(-?\d+), y=(-?\d+)..(-?\d+)')
@@ -66,6 +84,23 @@ def run_simulation(initial_velocity: Pos, target: Box) -> tuple[bool, Grid]:
     return hit, grid
 
 
+def flood_hits(initial_velocity: Pos, target: Box) -> Grid:
+    hits: set[Pos] = set()
+    fails: set[Pos] = set()
+    untested: set[Pos] = {initial_velocity}
+
+    while untested:
+        velocity = untested.pop()
+        if not run_simulation(velocity, target)[0]:
+            fails.add(velocity)
+            continue
+
+        hits.add(velocity)
+        untested.update(set(neighbors(velocity, exclude=(hits & fails))) - hits - fails)
+    
+    return {pos: '#' for pos in hits}
+
+
 #     ss = """23,-10  25,-9   27,-5   29,-6   22,-6   21,-7   9,0     27,-7   24,-5
 # 25,-7   26,-6   25,-5   6,8     11,-2   20,-5   29,-10  6,3     28,-7
 # 8,0     30,-6   29,-8   20,-10  6,7     6,4     6,1     14,-4   21,-6
@@ -113,18 +148,24 @@ if __name__ == '__main__':
         raise ValueError("Bad problem input")
     else:
         min_x, max_x, min_y, max_y = map(int, m.groups())
+        min_x, max_x, min_y, max_y = 156, 202, -110, -69
         # min_x, max_x, min_y, max_y = 20, 30, -10, -5
 
     target = Box((min_x, max_x), (min_y, max_y))
-    velocity: Pos = Pos(18, 109)
+    # velocity: Pos = Pos(6, 9)
+    velocity: Pos = Pos(20, 0)
 
     target_grid: Grid = {Pos(x, y): '/' for y in range(min_y, max_y+1) for x in range(min_x, max_x+1)}
+    start_grid: Grid = {Pos(0, 0): 'S'}
 
-    hit, path_grid = run_simulation(velocity, target)
+    # hit, path_grid = run_simulation(velocity, target)
+    hit_grid = flood_hits(velocity, target)
 
-    grid: Grid = cast(Grid, ChainMap(path_grid, target_grid))
+    grid: Grid = cast(Grid, ChainMap(start_grid, hit_grid, target_grid))
 
-    # print_grid(grid)
-    print("HIT!!!" if hit else "MISSED")
-    highest_point = max(p.y for p, ch in grid.items() if ch == '#')
-    print(f"Max height of {highest_point}")
+    print_grid(grid)
+    ways_to_hit = len(hit_grid) + len(target_grid)
+    print(ways_to_hit)
+    # print("HIT!!!" if hit else "MISSED")
+    # highest_point = max(p.y for p, ch in grid.items() if ch == '#')
+    # print(f"Max height of {highest_point}")
