@@ -21,7 +21,7 @@ class PacketType(Enum):
 def parse_packet(reader):
     version, type = read_packet_header(reader)
 
-    logging.info("Started parsing packet of type %s version %d", type, version)
+    logging.info(f"Started parsing packet of type {type} version {version}")
 
     if type == PacketType.literal_value:
         chunks = list(read_chunks(reader))
@@ -32,12 +32,12 @@ def parse_packet(reader):
 
         if length_type_id == '0':
             sub_packets_length = int(reader.take(15), 2)
-            logging.info("Operator with length type 0, reading packets in the next %d bits", sub_packets_length)
+            logging.info(f"Operator with length type 0, reading packets in the next {sub_packets_length} bits")
             value = list(parse_packets(StrChunkReader(reader.take(sub_packets_length))))
 
         elif length_type_id == '1':
             sub_packets_count = int(reader.take(11), 2)
-            logging.info("Operator with length type 1, reading %d sub packets", sub_packets_count)
+            logging.info(f"Operator with length type 1, reading {sub_packets_count} sub packets")
             value = [parse_packet(reader) for _ in range(sub_packets_count)]
 
     return Packet(version, type, value)
@@ -70,7 +70,7 @@ class StrChunkReader:
     def take(self, n: int) -> str:
         self.remaining -= n
         ret = ''.join(next(self.it) for _ in range(n))
-        logging.debug("Next %d bits are %s", n, ret)
+        logging.debug(f"Next {n} bits are {ret}")
         return ret
 
     def finished(self) -> bool:
