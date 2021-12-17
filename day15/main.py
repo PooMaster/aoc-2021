@@ -1,10 +1,20 @@
 import heapq
-from collections import namedtuple
+from typing import NamedTuple, Iterable, Optional
 
 
-class Pos(namedtuple("Pos", "x, y")):
-    def __add__(self, other: "Pos"):
-        return Pos(self.x + other.x, self.y + other.y)
+class Pos(NamedTuple):
+    x: int
+    y: int
+
+
+def add_pos(*args: Pos) -> Pos:
+    return Pos(sum(p.x for p in args), sum(p.y for p in args))
+
+
+Grid = dict[Pos, int]
+Visited = dict[Pos, tuple[int, Optional[Pos]]]
+Edge = tuple[Pos, Pos]
+Cost = int
 
 
 ORTHOGONAL_DIRECTIONS = [
@@ -15,21 +25,21 @@ ORTHOGONAL_DIRECTIONS = [
 ]
 
 
-def new_next_hops(pos, pos_cost, visited_nodes, grid, goal):
+def new_next_hops(pos: Pos, pos_cost: Cost, visited_nodes: Visited, grid: Grid, goal: Pos) -> Iterable[tuple[Cost, Edge]]:
     for d in ORTHOGONAL_DIRECTIONS:
-        neighbor = pos + d
+        neighbor = add_pos(pos, d)
         if neighbor not in grid or neighbor in visited_nodes:
             continue
         neighbor_cost = pos_cost + grid[neighbor]
-        yield (neighbor_cost, pos, neighbor)
+        yield (neighbor_cost, (pos, neighbor))
 
 
-def extent(iterable):
+def extent(iterable: Iterable[int]) -> tuple[int, int]:
     items = list(iterable)
     return min(items), max(items)
 
 
-def print_grid(grid):
+def print_grid(grid: Grid) -> None:
     min_x, max_x = extent(p.x for p in grid)
     min_y, max_y = extent(p.y for p in grid)
 
@@ -39,7 +49,7 @@ def print_grid(grid):
         print()
 
 
-def print_visited(visited):
+def print_visited(visited: Visited) -> None:
     min_x, max_x = extent(p.x for p in grid)
     min_y, max_y = extent(p.y for p in grid)
 
@@ -51,11 +61,11 @@ def print_visited(visited):
 
 
 TIMES = 5
-def big_boy_grid(grid):
+def big_boy_grid(grid: Grid) -> Grid:
     max_x = max(p.x for p in grid)
     max_y = max(p.y for p in grid)
 
-    new_grid = {}
+    new_grid: Grid = {}
 
     for y in range(0, TIMES):
         offset_y = Pos(0, (max_y+1) * y)
@@ -63,7 +73,7 @@ def big_boy_grid(grid):
             offset_x = Pos((max_x+1) * x, 0)
             for pos, value in grid.items():
                 new_cost = value + x + y
-                new_grid[pos + offset_x + offset_y] = new_cost if new_cost <= 9 else new_cost - 9
+                new_grid[add_pos(pos, offset_x, offset_y)] = new_cost if new_cost <= 9 else new_cost - 9
 
     return new_grid
 
@@ -80,15 +90,15 @@ if __name__ == '__main__':
     starting_position = Pos(0, 0)
     goal = Pos(max(p.x for p in grid), max(p.y for p in grid))
 
-    visited = {starting_position: (0, None)}  # Maintain list of visited nodes and their path costs
+    visited: Visited = {starting_position: (0, None)}  # Maintain list of visited nodes and their path costs
     # (neighbor_cost, pos, neighbor)
-    next_hops = list(new_next_hops(starting_position, 0, set(), grid, goal))  # Min heap of possible next hops and their path costs
+    next_hops: list[tuple[Cost, Edge]] = list(new_next_hops(starting_position, 0, {}, grid, goal))  # Min heap of possible next hops and their path costs
     heapq.heapify(next_hops)
 
 
     while True:
         while True:
-            hop_cost, from_node, to_node = heapq.heappop(next_hops)
+            hop_cost, (from_node, to_node) = heapq.heappop(next_hops)
             if to_node not in visited:
                 break
 
